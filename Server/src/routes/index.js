@@ -18,15 +18,15 @@ router.post("/users/register", async (req, res) => {
     }
 });
 
-// Đăng nhập người dùng
+// Đăng nhập người dùng bằng email
 router.post("/users/login", async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { email, password } = req.body;
 
-        const user = await User.findOne({ username });
+        const user = await User.findOne({ email });
 
         if (!user) {
-            return res.status(400).json({ message: "Tên đăng nhập không tồn tại" });
+            return res.status(400).json({ message: "Email không tồn tại" });
         }
 
         if (user.password !== password) {
@@ -38,6 +38,7 @@ router.post("/users/login", async (req, res) => {
         res.status(500).json({ message: "Lỗi khi đăng nhập", error });
     }
 });
+
 
 // Lấy danh sách người dùng
 router.get("/users", async (req, res) => {
