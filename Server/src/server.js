@@ -21,7 +21,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes (Chỉ sử dụng index.js)
-app.use("/api", require("./routes/index"));
+app.use("/", require("./routes/index"));
 
 // Socket.IO setup
 require("./sockets/socket")(io);
