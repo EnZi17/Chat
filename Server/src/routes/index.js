@@ -30,7 +30,7 @@ router.post("/users/login", async (req, res) => {
         }
 
         if (user.password !== password) {
-            return res.status(400).json({ message: "Mật khẩu không đúng" });
+            return res.status(401).json({ message: "Mật khẩu không đúng" });
         }
 
         res.json({ userId: user._id });
