@@ -83,7 +83,7 @@ router.get("/conversations/:userId", async (req, res) => {
 });
 
 
-// Tạo nhóm
+// Tạo nhóm 
 router.post("/groups", async (req, res) => {
     try {
         const { name, members } = req.body;

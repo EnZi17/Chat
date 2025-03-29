@@ -9,47 +9,72 @@ module.exports = (wss, clients) => {
 
         // Gán ID socket để quản lý danh sách client
         ws.id = new Date().getTime();
-        clients.set(ws.id, ws);
+        clients.set(ws.id, ws);  
 
         // Lắng nghe tin nhắn từ client
-        ws.on("message", async (data) => {
+        ws.on("message", async (data) => { 
             try {
                 const messageData = JSON.parse(data);
 
+ 
                 if (messageData.type === "joinRoom") {
                     // Lưu ID của user vào danh sách clients
-                    ws.room = messageData.conversationId;
-                    console.log(`User joined room: ${messageData.conversationId}`);
+                    ws.room = new mongoose.Types.ObjectId(messageData.conversationId);
+                    const user = await User.findOne({ _id: new mongoose.Types.ObjectId(messageData.id) }, "_id");
+                    console.log(`User joined room: ${user}`);
                 }
-
                 if (messageData.type === "sendMessage") {
-                    const { sender, content, conversationId, attachments } = messageData;
+                    try {
+                        
+                        let { sender, content, conversationId, attachments } = messageData;
+                        const conversationIdObject = new mongoose.Types.ObjectId(conversationId);
 
-                    // Tạo tin nhắn mới
-                    const message = new Message({
-                        sender,
-                        content,
-                        conversation: conversationId,
-                        attachments: attachments || [],
-                        readBy: [sender],
-                    });
-
-                    // Lưu tin nhắn vào MongoDB
-                    await message.save();
-
-                    // Tìm cuộc trò chuyện
-                    const conversation = await Conversation.findById(conversationId);
-                    if (!conversation) {
-                        return ws.send(JSON.stringify({ type: "error", message: "Cuộc trò chuyện không tồn tại!" }));
-                    }
-
-                    // Gửi tin nhắn đến tất cả client trong room
-                    clients.forEach((client) => {
-                        if (client !== ws && client.room === conversationId) {
-                            client.send(JSON.stringify({ type: "receiveMessage", message }));
+                        // Tìm người gửi
+                        const sendUser = await User.findOne({ _id: new mongoose.Types.ObjectId(sender) }, "_id");
+                        
+                        if (!sendUser) {
+                            return ws.send(JSON.stringify({ type: "error", message: "Người gửi không tồn tại!" }));
                         }
-                    });
+                
+                        // Tạo tin nhắn mới
+                        const message = new Message({
+                            sender: sendUser._id, 
+                            content,
+                            conversation: conversationIdObject,
+                            attachments: attachments || [],
+                            readBy: [sendUser._id],
+                        });
+
+                        // Lưu tin nhắn vào MongoDB
+                        await message.save();
+                        
+                        
+                
+                        // Kiểm tra cuộc trò chuyện
+                        const conversation = await Conversation.findById(conversationIdObject);
+                        
+                        if (!conversation) {
+                            return ws.send(JSON.stringify({ type: "error", message: "Cuộc trò chuyện không tồn tại!" }));
+                        }
+
+                        
+                
+                        // Gửi tin nhắn đến tất cả client trong room
+                        clients.forEach((client) => {
+                            if (client !== ws &&
+                                client.room?.toString() === conversationId.toString()) {
+                                client.send(JSON.stringify({ type: "receiveMessage", message }));
+                            }   
+                        });
+    
+                        
+                
+                    } catch (error) {
+                        console.error("Lỗi khi xử lý tin nhắn:", error);
+                        ws.send(JSON.stringify({ type: "error", message: "Lỗi server!" }));
+                    }
                 }
+                
             } catch (error) {
                 console.error("Error processing message:", error);
                 ws.send(JSON.stringify({ type: "error", message: "Lỗi khi xử lý tin nhắn!" }));
