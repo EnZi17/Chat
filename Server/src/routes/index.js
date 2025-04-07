@@ -33,7 +33,7 @@ router.post("/users/login", async (req, res) => {
             return res.status(401).json({ message: "Mật khẩu không đúng" });
         }
 
-        res.json({ userId: user._id });
+        res.json(user);
     } catch (error) {
         res.status(500).json({ message: "Lỗi khi đăng nhập", error });
     }
@@ -92,6 +92,49 @@ router.post("/groups", async (req, res) => {
         res.status(201).json(group);
     } catch (error) {
         res.status(500).json({ message: "Lỗi khi tạo nhóm", error });
+    }
+});
+
+// Cập nhật trạng thái online/offline
+router.post("/users/status", async (req, res) => {
+    try {
+        const { userId, isOnline } = req.body;
+
+        if (!userId || typeof isOnline !== "boolean") {
+            return res.status(400).json({ message: "Thiếu userId hoặc isOnline không hợp lệ" });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                isOnline,
+                lastOnline: isOnline ? null : new Date()
+            },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng" });
+        }
+
+        res.json({ message: "Cập nhật trạng thái thành công", user: updatedUser });
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi khi cập nhật trạng thái", error });
+    }
+});
+
+// Lấy danh sách tin nhắn theo conversation ID
+router.get("/messages/:conversationId", async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+
+        const messages = await Message.find({ conversation: conversationId })
+            .populate("sender", "username") // nếu bạn muốn kèm thông tin người gửi
+            .sort({ createdAt: 1 }); // sắp xếp theo thời gian tăng dần
+
+        res.json(messages);
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi khi lấy tin nhắn", error });
     }
 });
 

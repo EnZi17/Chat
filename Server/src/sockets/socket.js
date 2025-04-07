@@ -63,7 +63,7 @@ module.exports = (wss, clients) => {
                         clients.forEach((client) => {
                             if (client !== ws &&
                                 client.room?.toString() === conversationId.toString()) {
-                                client.send(JSON.stringify({ type: "receiveMessage", message }));
+                                client.send(message.content);
                             }   
                         });
     
