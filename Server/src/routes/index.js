@@ -138,5 +138,45 @@ router.get("/messages/:conversationId", async (req, res) => {
     }
 });
 
+router.get("/users/status/by-conversation/:conversationId", async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { userId } = req.query;
+
+        if (!userId) {
+            return res.status(400).json({ message: "Thiếu userId trong query" });
+        }
+
+        const conversation = await Conversation.findById(conversationId)
+            .populate("participants", "username isOnline lastOnline");
+
+        if (!conversation) {
+            return res.status(404).json({ message: "Không tìm thấy cuộc trò chuyện" });
+        }
+
+        if (conversation.participants.length !== 2) {
+            return res.status(400).json({ message: "Không phải cuộc trò chuyện 1-1" });
+        }
+
+        // Tìm người còn lại
+        const otherUser = conversation.participants.find(user => user._id.toString() !== userId);
+
+        if (!otherUser) {
+            return res.status(404).json({ message: "Không tìm thấy người còn lại" });
+        }
+
+        res.json({
+            userId: otherUser._id,
+            username: otherUser.username,
+            isOnline: otherUser.isOnline,
+            lastOnline: otherUser.lastOnline
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Lỗi khi lấy trạng thái người dùng", error });
+    }
+});
+
 
 module.exports = router;
