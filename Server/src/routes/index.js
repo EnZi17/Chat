@@ -1,12 +1,100 @@
 const express = require("express");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+const CryptoJS = require("crypto-js"); // dùng để mã hóa AES
 const User = require("../models/User");
+const router = express.Router();
+
+
 const Conversation = require("../models/Conversation");
 const Message = require("../models/Message");
 const Group = require("../models/Group");
 
-const router = express.Router();
 
-// Đăng ký người dùng
+
+// Secret key để mã hóa AES (giống trong Java)
+const SECRET_KEY = "D9fSg6Y4N7hZ1K2p"; // Khóa mạnh hơn
+const IV = "1234567890123456"; // IV giống như trong Java
+
+function generateStrongPassword(length = 16) {
+    const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const lowercase = "abcdefghijklmnopqrstuvwxyz";
+    const numbers = "0123456789";
+    const specialChars = "!@#$%^&*()_+[]{}|;:,.<>?";
+    const all = uppercase + lowercase + numbers + specialChars;
+
+    let password = '';
+    password += uppercase[Math.floor(Math.random() * uppercase.length)];
+    password += numbers[Math.floor(Math.random() * numbers.length)];
+    password += specialChars[Math.floor(Math.random() * specialChars.length)];
+
+    while (password.length < length) {
+        password += all[Math.floor(Math.random() * all.length)];
+    }
+
+    return password.split('').sort(() => 0.5 - Math.random()).join('');
+}
+
+function encryptAES(plainText) {
+    const key = CryptoJS.enc.Utf8.parse(SECRET_KEY);
+    const iv = CryptoJS.enc.Utf8.parse(IV);  // IV giống nhau
+    const encrypted = CryptoJS.AES.encrypt(plainText, key, { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+    return encrypted.toString();
+}
+
+// Route gửi email reset password
+router.post("/users/forgot-password", async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        // Kiểm tra email có được gửi lên trong request không
+        if (!email) {
+            return res.status(400).json({ message: "Vui lòng cung cấp email" });
+        }
+
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng với email này" });
+        }
+
+        // Tạo mật khẩu mới
+        const newPassword = generateStrongPassword(8);
+        const encryptedPassword = encryptAES(newPassword); // mã hóa AES
+
+        // Cấu hình nodemailer với Gmail SMTP
+        const transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: "vominhthong117@gmail.com",  // hardcode email của bạn
+                pass: "sxva pggr joiq ojua"        // hardcode mật khẩu ứng dụng
+            }
+        });
+
+        // Cấu hình email
+        const mailOptions = {
+            from: '"Your App" <vominhthong117@gmail.com>',  // Địa chỉ email của bạn
+            to: email,  // Gửi đến email nhận được trong body của request
+            subject: "Mật khẩu mới từ hệ thống",
+            text: `Mật khẩu mới của bạn là: ${newPassword}`
+        };
+
+        console.log(newPassword)
+
+        // Gửi email
+        await transporter.sendMail(mailOptions);
+
+        // Lưu mật khẩu mã hóa vào database
+        user.password = encryptedPassword;
+        await user.save();
+
+        res.json({ message: "✅ Mật khẩu mới đã được gửi qua email" });
+    } catch (error) {
+        console.error("❌ Lỗi:", error);
+        res.status(500).json({ message: "❌ Có lỗi xảy ra khi gửi mật khẩu", error });
+    }
+});
+
 router.post("/users/register", async (req, res) => {
     try {
         const { username, email, password } = req.body;
@@ -89,7 +177,7 @@ router.get("/conversations/:userId", async (req, res) => {
         const conversations = await Conversation.find({ participants: req.params.userId });
         res.json(conversations);
     } catch (error) {
-        res.status(500).json({ message: "Lỗi khi lấy cuộc trò chuyện", error });
+        res.status(501).json({ message: "Lỗi khi lấy cuộc trò chuyện", error });
     }
 });
 
