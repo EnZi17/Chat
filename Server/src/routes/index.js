@@ -53,16 +53,24 @@ router.get("/users", async (req, res) => {
 // Tạo cuộc trò chuyện
 router.post("/conversations", async (req, res) => {
     try {
-        const { participants, isGroup } = req.body;
+        const { participants, isGroup, name } = req.body;
 
-        const users = await User.find({ username: { $in: participants } }, "_id");
-        const participantIds = users.map(user => user._id);
+        // Lấy thông tin người dùng từ danh sách ID
+        const users = await User.find({ _id: { $in: participants } }, "_id");
 
+        // Kiểm tra nếu có ID nào không tồn tại
+        const participantIds = users.map(user => user._id.toString()); // Chuyển đổi ObjectId thành chuỗi để so sánh
         if (participantIds.length !== participants.length) {
-            return res.status(400).json({ message: "Có username không tồn tại" });
+            return res.status(400).json({ message: "Có ID người dùng không tồn tại" });
         }
 
-        const conversation = new Conversation({ participants: participantIds, isGroup });
+        // Tạo cuộc trò chuyện
+        const conversation = new Conversation({
+            participants: participantIds,
+            isGroup,
+            name: name || null // name là tùy chọn, nếu không có thì để null
+        });
+
         await conversation.save();
 
         res.status(201).json(conversation);
@@ -71,6 +79,9 @@ router.post("/conversations", async (req, res) => {
         res.status(500).json({ message: "Lỗi khi tạo cuộc trò chuyện", error });
     }
 });
+
+
+
 
 // Lấy danh sách cuộc trò chuyện của một người dùng
 router.get("/conversations/:userId", async (req, res) => {
@@ -177,6 +188,42 @@ router.get("/users/status/by-conversation/:conversationId", async (req, res) => 
         res.status(500).json({ message: "Lỗi khi lấy trạng thái người dùng", error });
     }
 });
+
+// Lấy thông tin người dùng theo ID
+router.get("/users/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+
+        // Tìm người dùng theo ID
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng" });
+        }
+
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi khi lấy thông tin người dùng", error });
+    }
+});
+// Lấy thông tin người dùng theo email
+router.get("/users/by-email/:email", async (req, res) => {
+    try {
+        const { email } = req.params;
+
+        // Tìm người dùng theo email
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng với email này" });
+        }
+
+        res.json(user);
+    } catch (error) {
+        res.status(500).json({ message: "Lỗi khi lấy thông tin người dùng", error });
+    }
+});
+
 
 
 module.exports = router;

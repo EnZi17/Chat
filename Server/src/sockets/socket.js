@@ -9,14 +9,14 @@ module.exports = (wss, clients) => {
 
         // Gán ID socket để quản lý danh sách client
         ws.id = new Date().getTime();
-        clients.set(ws.id, ws);  
+        clients.set(ws.id, ws);
 
         // Lắng nghe tin nhắn từ client
-        ws.on("message", async (data) => { 
+        ws.on("message", async (data) => {
             try {
                 const messageData = JSON.parse(data);
 
- 
+
                 if (messageData.type === "joinRoom") {
                     // Lưu ID của user vào danh sách clients
                     ws.room = new mongoose.Types.ObjectId(messageData.conversationId);
@@ -25,20 +25,20 @@ module.exports = (wss, clients) => {
                 }
                 if (messageData.type === "sendMessage") {
                     try {
-                        
+
                         let { sender, content, conversationId, attachments } = messageData;
                         const conversationIdObject = new mongoose.Types.ObjectId(conversationId);
 
                         // Tìm người gửi
                         const sendUser = await User.findOne({ _id: new mongoose.Types.ObjectId(sender) }, "_id");
-                        
+
                         if (!sendUser) {
                             return ws.send(JSON.stringify({ type: "error", message: "Người gửi không tồn tại!" }));
                         }
-                
+
                         // Tạo tin nhắn mới
                         const message = new Message({
-                            sender: sendUser._id, 
+                            sender: sendUser._id,
                             content,
                             conversation: conversationIdObject,
                             attachments: attachments || [],
@@ -47,38 +47,46 @@ module.exports = (wss, clients) => {
 
                         // Lưu tin nhắn vào MongoDB
                         await message.save();
-                        
-                        
-                
+
+
+
                         // Kiểm tra cuộc trò chuyện
                         const conversation = await Conversation.findById(conversationIdObject);
-                        
+
                         if (!conversation) {
                             return ws.send(JSON.stringify({ type: "error", message: "Cuộc trò chuyện không tồn tại!" }));
                         }
 
-                        
-                
+
+
+                        // Gửi tin nhắn đến tất cả client trong room
                         // Gửi tin nhắn đến tất cả client trong room
                         clients.forEach((client) => {
-                            if (client !== ws &&
-                                client.room?.toString() === conversationId.toString()) {
+                            if (client.room?.toString() === conversationId.toString()) {
+                                if (client !== ws) {
+                                    // Gửi cho người khác trong room
                                     client.send(JSON.stringify({
                                         type: "newMessage",
                                         message
                                     }));
-                                    
-                            }   
+                                } else {
+                                    // Gửi lại cho chính người gửi
+                                    client.send(JSON.stringify({
+                                        type: "myMessage",
+                                        message
+                                    }));
+                                }
+                            }
                         });
-    
-                        
-                
+
+
+
                     } catch (error) {
                         console.error("Lỗi khi xử lý tin nhắn:", error);
                         ws.send(JSON.stringify({ type: "error", message: "Lỗi server!" }));
                     }
                 }
-                
+
             } catch (error) {
                 console.error("Error processing message:", error);
                 ws.send(JSON.stringify({ type: "error", message: "Lỗi khi xử lý tin nhắn!" }));
