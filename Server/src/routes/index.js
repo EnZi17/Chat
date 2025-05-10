@@ -311,7 +311,95 @@ router.get("/users/by-email/:email", async (req, res) => {
         res.status(500).json({ message: "Lỗi khi lấy thông tin người dùng", error });
     }
 });
+router.get("/conversations/info/:conversationId", async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { userId } = req.query;
+
+        const conversation = await Conversation.findById(conversationId)
+            .populate("participants", "avatar username email isOnline lastOnline");
+
+        if (!conversation) {
+            return res.status(404).json({ message: "Không tìm thấy cuộc trò chuyện" });
+        }
+
+        if (conversation.isGroup) {
+            return res.json({ group: true, avatar: "group" });
+        }
+
+        // Nếu là cuộc trò chuyện 1-1, trả về thông tin người còn lại
+        const otherParticipant = conversation.participants.find(
+            user => user._id.toString() !== userId
+        );
+
+        if (!otherParticipant) {
+            return res.status(404).json({ message: "Không tìm thấy người còn lại trong cuộc trò chuyện" });
+        }
+
+        res.json(otherParticipant); // Trả về toàn bộ thông tin người còn lại
+
+    } catch (error) {
+        console.error("Lỗi khi lấy thông tin conversation:", error);
+        res.status(500).json({ message: "Lỗi server", error });
+    }
+});
 
 
+
+// Cập nhật avatar cho người dùng
+router.post("/users/update-avatar/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { avatarUrl } = req.body;
+
+        // Kiểm tra avatarUrl có được gửi lên trong body không
+        if (!avatarUrl) {
+            return res.status(400).json({ message: "Vui lòng cung cấp URL của avatar" });
+        }
+
+        // Tìm người dùng theo userId
+        const user = await User.findById(userId);
+        console.log(userId)
+
+        if (!user) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng" });
+        }
+
+        // Cập nhật avatar
+        user.avatar = avatarUrl;
+
+        // Lưu lại thay đổi
+        await user.save();
+
+        res.json({ message: "✅ Avatar đã được cập nhật", user });
+    } catch (error) {
+        console.error("❌ Lỗi khi cập nhật avatar:", error);
+        res.status(500).json({ message: "❌ Có lỗi xảy ra khi cập nhật avatar", error });
+    }
+});
+
+router.post("/users/update-username/:userId", async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { newName } = req.body;
+
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "Không tìm thấy người dùng" });
+        }
+
+        // Cập nhật avatar
+        user.username = newName;
+
+        // Lưu lại thay đổi
+        await user.save();
+
+        res.json({ message: "Username đã được cập nhật", user });
+    } catch (error) {
+        console.error("Lỗi khi cập nhật tên:", error);
+        res.status(500).json({ message: "Có lỗi xảy ra", error });
+    }
+});
 
 module.exports = router;
