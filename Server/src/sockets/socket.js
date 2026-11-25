@@ -9,6 +9,8 @@ module.exports = (wss, clients) => {
 
         // Gán ID socket để quản lý danh sách client
         ws.id = new Date().getTime();
+        ws.rooms = new Set();
+        ws.userId = null;
         clients.set(ws.id, ws);
 
         // Lắng nghe tin nhắn từ client
@@ -16,12 +18,20 @@ module.exports = (wss, clients) => {
             try {
                 const messageData = JSON.parse(data);
 
+                if (messageData.type === "identify" && messageData.id) {
+                    ws.userId = messageData.id.toString();
+                    console.log(`User identified: ${ws.userId}`);
+                }
 
                 if (messageData.type === "joinRoom") {
-                    // Lưu ID của user vào danh sách clients
-                    ws.room = new mongoose.Types.ObjectId(messageData.conversationId);
+                    if (messageData.id) {
+                        ws.userId = messageData.id.toString();
+                    }
+                    if (messageData.conversationId) {
+                        ws.rooms.add(messageData.conversationId.toString());
+                    }
                     const user = await User.findOne({ _id: new mongoose.Types.ObjectId(messageData.id) }, "_id");
-                    console.log(`User joined room: ${user}`);
+                    console.log(`User joined room: ${user} -> ${messageData.conversationId}`);
                 }
                 if (messageData.type === "sendMessage") {
                     try {
@@ -59,10 +69,15 @@ module.exports = (wss, clients) => {
 
 
 
-                        // Gửi tin nhắn đến tất cả client trong room
-                        // Gửi tin nhắn đến tất cả client trong room
+                        // Gửi tin nhắn đến tất cả client trong room hoặc là participant của cuộc trò chuyện
+                        const convIdStr = conversationId.toString();
+                        const participantIds = new Set(conversation.participants.map((p) => p.toString()));
+
                         clients.forEach((client) => {
-                            if (client.room?.toString() === conversationId.toString()) {
+                            if (client.readyState !== 1) return;
+                            const inRoom = client.rooms?.has(convIdStr);
+                            const isParticipant = client.userId && participantIds.has(client.userId);
+                            if (inRoom || isParticipant) {
                                 if (client !== ws) {
                                     // Gửi cho người khác trong room
                                     client.send(JSON.stringify({
